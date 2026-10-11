@@ -23,6 +23,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from jalert import push as push_module  # noqa: E402
+from jalert.ai_summary import summarize_top_entries  # noqa: E402
 from jalert.config import describe_secret_sources, load_config  # noqa: E402
 from jalert.fetch import collect_items, http_request  # noqa: E402
 from jalert.report import build_digest, build_markdown  # noqa: E402
@@ -52,6 +53,7 @@ def entry_to_dict(entry: dict) -> dict:
     item = entry["item"]
     scored = entry["scored"]
     return {
+        "ai_zh": entry.get("ai_zh", ""),
         "item": item.as_dict(),
         "scored": {
             "score": scored.score,
@@ -76,7 +78,7 @@ def hydrate_entries(records: list[dict]) -> list[dict]:
             matches=[SimpleNamespace(**m) for m in scored_data.get("matches", [])],
             excluded=False,
         )
-        entries.append({"item": item, "scored": scored})
+        entries.append({"item": item, "scored": scored, "ai_zh": record.get("ai_zh", "")})
     return entries
 
 
@@ -404,6 +406,13 @@ def run(args: argparse.Namespace) -> int:
             store.save([(e["item"], e["scored"]) for e in new_entries])
         log.info("new items: %d (已存在 %d)", len(new_entries), len(matched) - len(new_entries))
 
+        # Optional LLM step: Chinese TL;DR for the top new entries.
+        # Needs JALERT_LLM_API_KEY in the environment; skipped silently without it.
+        ordered_new = sort_entries(new_entries, tiers, day)
+        ai_max = int(cfg.get("push", {}).get("max_items", 10))
+        if summarize_top_entries(ordered_new, ai_max):
+            log.info("ai 中文摘要已生成")
+
         previous = {} if args.dry_run else load_snapshot(day_snapshot)
         merged_records = list(previous.get("entries", []))
         added_now = 0
@@ -411,6 +420,14 @@ def run(args: argparse.Namespace) -> int:
             merged_records = [entry_to_dict(e) for e in new_entries]
         else:
             seen_uid = {r["item"]["uid"] for r in merged_records}
+            new_by_uid = {entry["item"].uid: entry for entry in new_entries}
+            # Backfill ai_zh onto records already in today's snapshot (e.g. second
+            # run of the day): the summary was generated for the same uid above.
+            for record in merged_records:
+                if not record.get("ai_zh"):
+                    ai = new_by_uid.get(record["item"]["uid"], {}).get("ai_zh", "")
+                    if ai:
+                        record["ai_zh"] = ai
             for entry in new_entries:
                 # ``entry["item"]`` is an Item object here, not the dict form kept
                 # in the snapshot - so read the attribute, not a key.
