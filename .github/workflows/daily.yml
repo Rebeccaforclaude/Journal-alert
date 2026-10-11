@@ -40,6 +40,8 @@ jobs:
       JALERT_SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
       JALERT_PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
       JALERT_BARK_KEY: ${{ secrets.BARK_KEY }}
+      # DeepSeek (OpenAI-compatible) key for the optional AI Chinese summaries.
+      JALERT_LLM_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
       # Optional: a real contact address gets OpenAlex/Crossref "polite pool" priority.
       JALERT_MAILTO: ${{ vars.JALERT_MAILTO }}
 
