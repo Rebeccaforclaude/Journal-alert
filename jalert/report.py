@@ -217,6 +217,10 @@ def build_markdown(
             if item.abstract:
                 lines.append("")
                 lines.append(f"> {_truncate(item.abstract, 700)}")
+            ai_zh = entry.get("ai_zh", "")
+            if ai_zh:
+                lines.append("")
+                lines.append(f"🤖 **AI 中文摘要**：{ai_zh}")
             lines.append("")
         lines.append("---")
         lines.append("")
@@ -273,7 +277,11 @@ def build_digest(
         else:
             head = f"{star} {_truncate(item.title, 120)}"
         meta = f"　　{item.journal} · {item.date} · 匹配 {hits}"
-        blocks.append(f"{head}  \n{meta}")
+        block = f"{head}  \n{meta}"
+        ai_zh = entry.get("ai_zh", "")
+        if ai_zh:
+            block += f"  \n　　🤖{_truncate(ai_zh.replace(chr(10), ' '), 160)}"
+        blocks.append(block)
         shown += 1
 
     lines = [f"抓取 {fetched_total} 篇 · 命中 {matched_total} 篇 · 新增 **{len(entries)}** 篇"]
@@ -282,11 +290,13 @@ def build_digest(
         lines.append(block)
     if len(entries) > shown:
         lines.append("")
-        lines.append(f"…… 其余 {len(entries) - shown} 篇见本地日报。")
+        lines.append(f"…… 其余 {len(entries) - shown} 篇见完整日报。")
 
     body = "\n".join(lines)
     if len(body) > max_chars:
         # Cut back to a paragraph boundary so we never truncate mid-entry.
         cut = body[:max_chars].rsplit("\n\n", 1)[0] or body[:max_chars].rsplit("\n", 1)[0]
-        body = cut + "\n\n……（已截断，完整内容见本地 Markdown 日报）"
+        body = cut + "\n\n……（已截断）"
+    # The full-report link is appended after truncation so it is never cut off.
+    body += f"\n\n📄 完整日报（含全部 {len(entries)} 篇摘要）：https://rebeccaforclaude.github.io/Journal-alert/reports/{day}.html"
     return title, body
